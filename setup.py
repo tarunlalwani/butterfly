@@ -41,6 +41,7 @@ setup(
             'static/main.css',
             'static/html-sanitizer.js',
             'static/*.min.js',
+            'static/*.min.js.map',
             'templates/index.html',
             'bin/*',
             'templates/motd',

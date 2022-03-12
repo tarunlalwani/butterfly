@@ -1,3 +1,5 @@
+_root_path = getRootPath()
+
 _set_theme_href = (href) ->
   document.getElementById('style').setAttribute('href', href)
   img = document.createElement('img')
@@ -8,10 +10,13 @@ _set_theme_href = (href) ->
 _theme = localStorage?.getItem('theme')
 _set_theme_href(_theme) if _theme
 
-@set_theme = (theme) ->
+set_theme = @set_theme = (theme) ->
   _theme = theme
   localStorage?.setItem('theme', theme)
   _set_theme_href(theme) if theme
+
+setDefaultTheme()
+console.log 'Theme should be loaded'
 
 document.addEventListener 'keydown', (e) ->
   return true unless e.altKey and e.keyCode is 83
@@ -48,18 +53,18 @@ document.addEventListener 'keydown', (e) ->
       inner += theme
       inner += '</option>'
 
-    option "/static/main.css", 'default'
+    option _root_path + "/static/main.css", 'default'
 
     if themes.length
       inner += '<optgroup label="Local themes">'
       for theme in themes
-        url = "/theme/#{theme}/style.css"
+        url = _root_path + "/theme/#{theme}/style.css"
         option url, theme
       inner += '</optgroup>'
 
     inner += '<optgroup label="Built-in themes">'
     for theme in builtin_themes
-      url = "/theme/#{theme}/style.css"
+      url = _root_path + "/theme/#{theme}/style.css"
       option url, theme.slice('built-in-'.length)
     inner += '</optgroup>'
 
@@ -74,7 +79,7 @@ document.addEventListener 'keydown', (e) ->
 
     theme_list.addEventListener 'change', -> set_theme theme_list.value
 
-  oReq.open("GET", "/themes/list.json")
+  oReq.open("GET", _root_path + "/themes/list.json")
   oReq.send()
 
   cancel e

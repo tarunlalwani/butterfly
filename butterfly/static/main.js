@@ -1,8 +1,20 @@
 (function() {
-  var $, State, Terminal, cancel, cols, isMobile, openTs, quit, rows, s, ws,
+  var $, State, Terminal, cancel, cols, getRootPath, isMobile, openTs, quit, reconnecting, rows, s, ws,
     indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
+  getRootPath = function() {
+    var rootPath;
+    rootPath = document.body.getAttribute('data-root-path');
+    rootPath = rootPath.replace(/^\/+|\/+$/g, '');
+    if (rootPath.length) {
+      rootPath = "/" + rootPath;
+    }
+    return rootPath;
+  };
+
   cols = rows = null;
+
+  reconnecting = false;
 
   quit = false;
 
@@ -16,18 +28,14 @@
   $ = document.querySelectorAll.bind(document);
 
   document.addEventListener('DOMContentLoaded', function() {
-    var close, ctl, error, init_ctl_ws, init_shell_ws, open, path, reopenOnClose, rootPath, term, write, write_request, wsUrl;
+    var ctl, error, init_ctl_ws, init_shell_ws, open, path, reopenShellOnClose, retryCtlOnClose, rootPath, term, write, write_request, wsUrl;
     term = null;
     if (location.protocol === 'https:') {
       wsUrl = 'wss://';
     } else {
       wsUrl = 'ws://';
     }
-    rootPath = document.body.getAttribute('data-root-path');
-    rootPath = rootPath.replace(/^\/+|\/+$/g, '');
-    if (rootPath.length) {
-      rootPath = "/" + rootPath;
-    }
+    rootPath = getRootPath();
     wsUrl += document.location.host + rootPath;
     path = '/';
     if (path.indexOf('/session') < 0) {
@@ -37,13 +45,22 @@
     ws.shell = new WebSocket(wsUrl + '/ws' + path);
     ws.ctl = new WebSocket(wsUrl + '/ctl' + path);
     open = function() {
-      console.log("WebSocket open", arguments);
       if (term) {
+        console.log("WebSocket reconnected", arguments);
+        reconnecting = false;
         term.body.classList.remove('stopped');
         term.out = ws.shell.send.bind(ws.shell);
-        term.out('\x03\n');
+        term.ctl = ws.ctl.send.bind(ws.ctl);
+        if (ws.ctl.readyState === WebSocket.OPEN) {
+          ws.ctl.send(JSON.stringify({
+            cmd: 'size',
+            cols: term.cols,
+            rows: term.rows
+          }));
+        }
         return;
       }
+      console.log("WebSocket open", arguments);
       if (ws.shell.readyState === WebSocket.OPEN && ws.ctl.readyState === WebSocket.OPEN) {
         term = new Terminal(document.body, ws.shell.send.bind(ws.shell), ws.ctl.send.bind(ws.ctl));
         term.ws = ws;
@@ -63,20 +80,37 @@
     error = function() {
       return console.error("WebSocket error", arguments);
     };
-    close = function() {
+    retryCtlOnClose = function() {
       console.log("WebSocket closed", arguments);
       if (quit) {
         return;
       }
-      quit = true;
-      term.write('Closed');
-      term.skipNextKey = true;
-      term.body.classList.add('dead');
-      if ((new Date()).getTime() - openTs > 60 * 1000) {
-        return window.open('', '_self').close();
+      console.log("WebSocket reconnecting", arguments);
+      setTimeout(function() {
+        if (quit) {
+          return;
+        }
+        ws.ctl = new WebSocket(wsUrl + '/ctl' + path);
+        return init_ctl_ws();
+      }, 100);
+      if (!reconnecting) {
+        setTimeout(function() {
+          if (!reconnecting) {
+            return;
+          }
+          reconnecting = false;
+          quit = true;
+          term.write('Closed');
+          term.skipNextKey = true;
+          term.body.classList.add('dead');
+          if ((new Date()).getTime() - openTs > 60 * 1000) {
+            return window.open('', '_self').close();
+          }
+        }, 1000);
+        return reconnecting = true;
       }
     };
-    reopenOnClose = function() {
+    reopenShellOnClose = function() {
       return setTimeout(function() {
         if (quit) {
           return;
@@ -104,13 +138,13 @@
       ws.shell.addEventListener('open', open);
       ws.shell.addEventListener('message', write_request);
       ws.shell.addEventListener('error', error);
-      return ws.shell.addEventListener('close', reopenOnClose);
+      return ws.shell.addEventListener('close', reopenShellOnClose);
     };
     init_ctl_ws = function() {
       ws.ctl.addEventListener('open', open);
       ws.ctl.addEventListener('message', ctl);
       ws.ctl.addEventListener('error', error);
-      return ws.ctl.addEventListener('close', close);
+      return ws.ctl.addEventListener('close', retryCtlOnClose);
     };
     init_shell_ws();
     init_ctl_ws();

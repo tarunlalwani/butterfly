@@ -1,6 +1,34 @@
 (function() {
-  var Popup, Selection, _set_theme_href, _theme, alt, cancel, clean_ansi, copy, ctrl, escape, histSize, linkify, maybePack, nextLeaf, packSize, popup, previousLeaf, selection, setAlarm, tags, tid, walk,
+  var Popup, Selection, _root_path, _set_theme_href, _theme, alt, cancel, clean_ansi, copy, ctrl, escape, getCurrentTheme, getDefaultTheme, getRootPath, histSize, linkify, maybePack, nextLeaf, packSize, popup, previousLeaf, selection, setAlarm, setDefaultTheme, set_theme, tags, tid, walk,
     indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+
+  getRootPath = function() {
+    var rootPath;
+    rootPath = document.body.getAttribute('data-root-path');
+    rootPath = rootPath.replace(/^\/+|\/+$/g, '');
+    if (rootPath.length) {
+      rootPath = "/" + rootPath;
+    }
+    return rootPath;
+  };
+
+  getDefaultTheme = function() {
+    return document.body.getAttribute('data-default-theme');
+  };
+
+  getCurrentTheme = function() {
+    return typeof localStorage !== "undefined" && localStorage !== null ? localStorage.getItem('theme') : void 0;
+  };
+
+  setDefaultTheme = function() {
+    var currentTheme, defaultTheme, themeName;
+    currentTheme = getCurrentTheme();
+    defaultTheme = getDefaultTheme();
+    themeName = (getRootPath()) + "/theme/" + defaultTheme + "/style.css";
+    if (defaultTheme && !currentTheme) {
+      return set_theme(themeName);
+    }
+  };
 
   clean_ansi = function(data) {
     var c, i, out, state;
@@ -276,7 +304,7 @@
     if (!(e.altKey && e.keyCode === 79)) {
       return true;
     }
-    open(location.origin);
+    open(location.origin + getRootPath() + "/");
     return cancel(e);
   });
 
@@ -694,6 +722,8 @@
     return sel.modify('extend', 'forward', 'character');
   });
 
+  _root_path = document.body.getAttribute('data-root-path');
+
   document.addEventListener('keydown', function(e) {
     var oReq;
     if (!(e.altKey && e.keyCode === 69)) {
@@ -701,28 +731,37 @@
     }
     oReq = new XMLHttpRequest();
     oReq.addEventListener('load', function() {
-      var j, len, out, ref, response, session;
-      response = JSON.parse(this.responseText);
+      var j, len, out, path, ref, response, session, validResponse;
+      validResponse = this.status === 200;
       out = '<div>';
       out += '<h2>Session list</h2>';
-      if (response.sessions.length === 0) {
-        out += "No current session for user " + response.user;
-      } else {
-        out += '<ul>';
-        ref = response.sessions;
-        for (j = 0, len = ref.length; j < len; j++) {
-          session = ref[j];
-          out += "<li><a href=\"/session/" + session + "\">" + session + "</a></li>";
+      if (validResponse) {
+        response = JSON.parse(this.responseText);
+        if (response.sessions.length === 0) {
+          out += "No current session for user " + response.user;
+        } else {
+          out += '<ul>';
+          ref = response.sessions;
+          for (j = 0, len = ref.length; j < len; j++) {
+            session = ref[j];
+            path = "{_root_path}/session/" + session;
+            out += "<li><a href=\"{path}\">" + session + "</a></li>";
+          }
+          out += '</ul>';
         }
-        out += '</ul>';
       }
+      ({
+        "else": out += "Failed to fetch list of sessions"
+      });
       out += '</div>';
       return popup.open(out);
     });
-    oReq.open("GET", "/sessions/list.json");
+    oReq.open("GET", _root_path + "/sessions/list.json");
     oReq.send();
     return cancel(e);
   });
+
+  _root_path = getRootPath();
 
   _set_theme_href = function(href) {
     var img;
@@ -742,7 +781,7 @@
     _set_theme_href(_theme);
   }
 
-  this.set_theme = function(theme) {
+  set_theme = this.set_theme = function(theme) {
     _theme = theme;
     if (typeof localStorage !== "undefined" && localStorage !== null) {
       localStorage.setItem('theme', theme);
@@ -751,6 +790,10 @@
       return _set_theme_href(theme);
     }
   };
+
+  setDefaultTheme();
+
+  console.log('Theme should be loaded');
 
   document.addEventListener('keydown', function(e) {
     var oReq, style;
@@ -779,12 +822,12 @@
         inner += theme;
         return inner += '</option>';
       };
-      option("/static/main.css", 'default');
+      option(_root_path + "/static/main.css", 'default');
       if (themes.length) {
         inner += '<optgroup label="Local themes">';
         for (j = 0, len = themes.length; j < len; j++) {
           theme = themes[j];
-          url = "/theme/" + theme + "/style.css";
+          url = _root_path + ("/theme/" + theme + "/style.css");
           option(url, theme);
         }
         inner += '</optgroup>';
@@ -792,7 +835,7 @@
       inner += '<optgroup label="Built-in themes">';
       for (k = 0, len1 = builtin_themes.length; k < len1; k++) {
         theme = builtin_themes[k];
-        url = "/theme/" + theme + "/style.css";
+        url = _root_path + ("/theme/" + theme + "/style.css");
         option(url, theme.slice('built-in-'.length));
       }
       inner += '</optgroup>';
@@ -803,7 +846,7 @@
         return set_theme(theme_list.value);
       });
     });
-    oReq.open("GET", "/themes/list.json");
+    oReq.open("GET", _root_path + "/themes/list.json");
     oReq.send();
     return cancel(e);
   });

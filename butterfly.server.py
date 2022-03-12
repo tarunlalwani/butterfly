@@ -85,6 +85,9 @@ tornado.options.define("uri_root_path", default='',
                        help="Sets the servier root path: "
                        "example.com/<uri_root_path>/static/")
 
+tornado.options.define("default_theme", default='',
+                       help="Set the default theme to be used"
+                       "Just use the theme name")
 
 if os.getuid() == 0:
     ev = os.getenv('XDG_CONFIG_DIRS', '/etc')
@@ -381,6 +384,6 @@ url = "http%s://%s:%d/%s" % (
 )
 
 if not options.one_shot or not webbrowser.open(url):
-    log.warn('Butterfly is ready, open your browser to: %s' % url)
+    log.warning('Butterfly is ready, open your browser to: %s' % url)
 
 ioloop.start()
